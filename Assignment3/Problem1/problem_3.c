@@ -16,15 +16,13 @@ void critical_section_function(void * threadID);
 void lock (int threadID);
 void unlock(int threadID);
 int getTicketArrMax();
+void mfence (void) { __asm volatile ("mfence" : : : "memory"); }
 
-// Write a pthreads program that creates a number of threads that repeatedly access a critical section that is synchronized using Lamport's
-// Bakery Algorithm, which we discussed in class.
-//
-// Your program should take two command line options.  First, the number of threads.  Second, the number of seconds to run for.
-//
-// Just before terminating, your program should say how many times each thread entered the critical section.  Make sure starvation does not
-// occur.
-
+/*
+ *
+ *	Problem 3
+ *
+ */
 int main(int argc, char* argv[])
 {
 
@@ -91,7 +89,6 @@ int main(int argc, char* argv[])
 	free((void*) ticketArr);
 	free((void*) choosingArr);
 	free((void*) threadCSCount);
-	
 	return 0;
 }
 
@@ -104,7 +101,7 @@ void critical_section_function(void * threadID)
 		lock(tid);
 		
 		threadCSCount[tid]++;	
-		
+
 		assert(in_cs == 0);
 		in_cs++;
 		assert(in_cs == 1);
@@ -120,10 +117,19 @@ void critical_section_function(void * threadID)
 
 void lock(int threadID)
 {
+	// "Basically you can think about it as flushing the store buffer and preventing the pipeline from reordering around the fence"
+	//  We need a memory fence after any data structure has been altered to ensure that other threads potentially running on 
+	//  separate cores receive the most up to date information regarding the state of the lock.
 	choosingArr[threadID] = 1;
+	mfence();
+	
+	// We don't need this value until choosingArr[threadID] is set to 0, 
 	ticketArr[threadID] = getTicketArrMax()  + 1;
 	choosingArr[threadID] = 0;
+	mfence();
 
+	// Within this for loop we do not need to add any mfence's because we are only reading values and not updating anything that 
+	// needs to be propogated to RAM
 	for(int j = 0; j < numThreads; j++)
 	{
 		while(choosingArr[j]);
@@ -135,6 +141,9 @@ void lock(int threadID)
 void unlock(int threadID)
 {
 	ticketArr[threadID] = 0;
+	
+	// Propogate the new values to RAM before being used by any other threads.
+	mfence();
 }
 
 int getTicketArrMax()

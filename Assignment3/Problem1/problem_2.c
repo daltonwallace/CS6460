@@ -11,20 +11,24 @@ int * threadCSCount;
 volatile int in_cs;
 int stop;
 
-
 void critical_section_function(void * threadID);
 void lock (int threadID);
 void unlock(int threadID);
 int getTicketArrMax();
 
-// Write a pthreads program that creates a number of threads that repeatedly access a critical section that is synchronized using Lamport's
-// Bakery Algorithm, which we discussed in class.
-//
-// Your program should take two command line options.  First, the number of threads.  Second, the number of seconds to run for.
-//
-// Just before terminating, your program should say how many times each thread entered the critical section.  Make sure starvation does not
-// occur.
-
+/*
+ *
+ *	Problem 2,  Improve the performance of the bakey algorithm by using the sched_yield() function call.
+ *	
+ *	The sched_yield() causes the calling thread to relinquish the CPU.  The thread is moved to the end of the queue for its
+ *	static priority and a new thread gets to run.
+ *
+ * 	Note:  If the calling thread is the only thread in the highest priority list at that time, it will continue to run after
+ * 	a call to sched_yield().
+ *
+ * 	For more info, consult man page.
+ *
+ */
 int main(int argc, char* argv[])
 {
 
@@ -126,9 +130,11 @@ void lock(int threadID)
 
 	for(int j = 0; j < numThreads; j++)
 	{
-		while(choosingArr[j]);
+		while(choosingArr[j])
+			sched_yield();
 
-		while((ticketArr[j] != 0) && ((ticketArr[j] < ticketArr[threadID]) || (ticketArr[j] == ticketArr[threadID] && j < threadID)));
+		while((ticketArr[j] != 0) && ((ticketArr[j] < ticketArr[threadID]) || (ticketArr[j] == ticketArr[threadID] && j < threadID)))
+			sched_yield();
 	}
 }
 
