@@ -70,6 +70,8 @@ int main(int argc, char* argv[])
 		}
 	}
 
+	printf("Total Number of Points: %f \n", totalCount);
+	printf("Number of points inside circle: %f \n", hitCount);
 	printf("Pie is roughly equivalent to: %f \n", 4.0 * hitCount / totalCount); 
 
 	free((void*) threadArr);

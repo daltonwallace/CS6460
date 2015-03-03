@@ -57,8 +57,7 @@ int main(int argc, char* argv[])
 		*arg = i;
 
 		createResult = pthread_create(&threadArr[i], NULL, (void *) &critical_section_function, arg);
-
-		if(createResult != 0)
+if(createResult != 0)
 		{
 			fprintf(stderr, "Thread could not be created! \n");
 			exit (1);
@@ -123,7 +122,7 @@ void lock(int threadID)
 	choosingArr[threadID] = 1;
 	mfence();
 	
-	// We don't need this value until choosingArr[threadID] is set to 0, 
+	// We don't need this value to be propagated to all cores  until choosingArr[threadID] is set to 0, 
 	ticketArr[threadID] = getTicketArrMax()  + 1;
 	choosingArr[threadID] = 0;
 	mfence();

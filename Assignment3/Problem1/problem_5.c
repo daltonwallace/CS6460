@@ -8,24 +8,22 @@ int * threadCSCount;
 volatile int in_cs;
 int stop;
 
-
 void critical_section_function(void * threadID);
-static inline int atomic_cmpxchg (volatile int *ptr, int old, int new);
+static inline int atomic_xadd (volatile int *ptr);
 
-struct spin_lock_t {
-
-	volatile int lock;
-
+struct fair_spin_lock_t {
+	volatile int ticketNum;
+	volatile int numBeingServed;
 };
 
-struct spin_lock_t s;
+struct fair_spin_lock_t s;
 
-void spin_lock (struct spin_lock_t *s);
-void spin_unlock (struct spin_lock_t *s);
+void fair_spin_lock (struct fair_spin_lock_t *s);
+void fair_spin_unlock (struct fair_spin_lock_t *s);
 
 /*
  *
- *  Problem 4.  Implemented using a spin lock for multiple cores.  Moving away from Lamport Bakery Algorithm..
+ *	Problem 5
  *
  */
 int main(int argc, char* argv[])
@@ -41,16 +39,17 @@ int main(int argc, char* argv[])
 
 	// END ERROR CHECKING
 	
-	
   int numSeconds = atoi(argv[2]);
-	int	numThreads = atoi(argv[1]);
-	
+	int numThreads = atoi(argv[1]);
 	int createResult = -1;
 	
 	pthread_t * threadArr = malloc(sizeof(pthread_t)*numThreads);
 	threadCSCount = malloc(sizeof(int) * numThreads);
 	in_cs = 0;
 	stop = 0;
+	
+	s.ticketNum = 0;
+	s.numBeingServed = 0;
 
 	for(int i = 0; i < numThreads; i ++)
 	{
@@ -99,8 +98,7 @@ void critical_section_function(void * threadID)
 
 	while(!stop)
 	{
-	
-		spin_lock(&(s));
+		fair_spin_lock(&(s));
 
 		threadCSCount[tid]++;	
 		
@@ -113,41 +111,40 @@ void critical_section_function(void * threadID)
 		assert(in_cs == 3);
 		in_cs = 0;
 
-		spin_unlock(&(s));
+		fair_spin_unlock(&(s));
 	}
 }
 
-void spin_lock(struct spin_lock_t *s)
+void fair_spin_lock(struct fair_spin_lock_t *s)
 {
-	while(atomic_cmpxchg(&(s->lock), 0, 1));		
+	// Take the next ticket value and then atomically add 1
+	volatile int myTicket = atomic_xadd(&(s -> ticketNum));
+
+	// Wait.  While my ticket value is not equal to the one currently being served.
+	while(myTicket != (s -> numBeingServed)); 
 }
 
-void spin_unlock(struct spin_lock_t *s)
+void fair_spin_unlock(struct fair_spin_lock_t *s)
 {
-	atomic_cmpxchg(&(s->lock), 1, 0);
+	// Upon unlocking increment the number being served to allow the next thread to now enter the critical section.
+	atomic_xadd(&(s -> numBeingServed));
 }
 
 /*
- * atomic_cmpxchg
- * 
+ * atomic_xadd
+ *
  * equivalent to atomic execution of this code:
  *
- * if (*ptr == old) {
- *   *ptr = new;
- *   return old;
- * } else {
- *   return *ptr;
- * }
- *
+ * return (*ptr)++;
+ * 
  */
-static inline int atomic_cmpxchg (volatile int *ptr, int old, int new)
+static inline int atomic_xadd (volatile int *ptr)
 {
-	  int ret;
-		
-		__asm volatile ("lock cmpxchgl %2,%1"
-			: "=a" (ret), "+m" (*ptr)     
-			: "r" (new), "0" (old)      
-			: "memory");         
-	
-		return ret;                            
+	  register int val __asm__("eax") = 1;
+		__asm volatile ("lock xaddl %0,%1"
+		: "+r" (val)
+		: "m" (*ptr)
+		: "memory"
+		);  
+		return val;
 }
