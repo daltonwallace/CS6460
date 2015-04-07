@@ -473,4 +473,3 @@ void draw_me (void)
 			return;
 	}
 }
-

@@ -87,6 +87,8 @@ ssize_t
 sleepy_read(struct file *filp, char __user *buf, size_t count, 
 	    loff_t *f_pos)
 {
+  
+  printk("Operating in sleepy_read \n");
   struct sleepy_dev *dev = (struct sleepy_dev *)filp->private_data;
   ssize_t retval = 0;
 	
