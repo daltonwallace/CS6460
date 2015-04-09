@@ -13,7 +13,7 @@
  * under the terms of the GNU General Public License version 2 as published
  * by the Free Software Foundation.
  ======================================================================== */
-
+#define _GNU_SOURCE
 #include <linux/version.h>
 #include <linux/module.h>
 #include <linux/moduleparam.h>
@@ -27,11 +27,12 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/mutex.h>
-
 #include <asm/uaccess.h>
 
 #include "sleepy.h"
 
+#include <linux/wait.h>
+#include <linux/sched.h>
 MODULE_AUTHOR("Eugene A. Shatokhin, John Regehr");
 MODULE_LICENSE("GPL");
 
@@ -47,6 +48,8 @@ static unsigned int sleepy_major = 0;
 static struct sleepy_dev *sleepy_devices = NULL;
 static struct class *sleepy_class = NULL;
 /* ================================================================ */
+
+static DECLARE_WAIT_QUEUE_HEAD(wq);
 
 int 
 sleepy_open(struct inode *inode, struct file *filp)
@@ -88,19 +91,22 @@ sleepy_read(struct file *filp, char __user *buf, size_t count,
 	    loff_t *f_pos)
 {
   
-  printk("Operating in sleepy_read \n");
-  struct sleepy_dev *dev = (struct sleepy_dev *)filp->private_data;
-  ssize_t retval = 0;
+ printk("Operating in sleepy_read \n");
+ struct sleepy_dev *dev = (struct sleepy_dev *)filp->private_data;
+ ssize_t retval = 0;
 	
-  if (mutex_lock_killable(&dev->sleepy_mutex))
+ if (mutex_lock_killable(&dev->sleepy_mutex))
     return -EINTR;
 	
   /* YOUR CODE HERE */
 
   /* END YOUR CODE */
 	
-  mutex_unlock(&dev->sleepy_mutex);
-  return retval;
+ mutex_unlock(&dev->sleepy_mutex);
+ 
+ printk("Operating in sleepy_read after the mutex! \n");
+ 
+ return retval;
 }
                 
 ssize_t 
@@ -114,6 +120,11 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
     return -EINTR;
 	
   /* YOUR CODE HERE */
+ 
+  int flag = 1;
+ 
+  // Wait for a number of jiffies until ready to wakeup :)
+  __wait_event_interruptible(wq, flag != 0);
 
   /* END YOUR CODE */
 	
