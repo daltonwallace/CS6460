@@ -27,12 +27,15 @@
 #include <linux/cdev.h>
 #include <linux/device.h>
 #include <linux/mutex.h>
+#include <linux/jiffies.h>
 #include <asm/uaccess.h>
 
 #include "sleepy.h"
 
 #include <linux/wait.h>
 #include <linux/sched.h>
+#include <linux/string.h>
+
 MODULE_AUTHOR("Eugene A. Shatokhin, John Regehr");
 MODULE_LICENSE("GPL");
 
@@ -50,6 +53,7 @@ static struct class *sleepy_class = NULL;
 /* ================================================================ */
 
 static DECLARE_WAIT_QUEUE_HEAD(wq);
+static int flag = 0;
 
 int 
 sleepy_open(struct inode *inode, struct file *filp)
@@ -86,12 +90,18 @@ sleepy_release(struct inode *inode, struct file *filp)
   return 0;
 }
 
+int isNumber(const char* string)
+{
+	long tmp = 0;
+	long * resultPtr = 0;
+	simple_strtol(string, 10, resultPtr);
+	return !(*resultPtr == 0 && string[0] != '0');
+}
+
 ssize_t 
 sleepy_read(struct file *filp, char __user *buf, size_t count, 
 	    loff_t *f_pos)
 {
-  
- printk("Operating in sleepy_read \n");
  struct sleepy_dev *dev = (struct sleepy_dev *)filp->private_data;
  ssize_t retval = 0;
 	
@@ -99,12 +109,11 @@ sleepy_read(struct file *filp, char __user *buf, size_t count,
     return -EINTR;
 	
   /* YOUR CODE HERE */
-
+  flag = 1;
+  wake_up_interruptible(&wq);
   /* END YOUR CODE */
 	
  mutex_unlock(&dev->sleepy_mutex);
- 
- printk("Operating in sleepy_read after the mutex! \n");
  
  return retval;
 }
@@ -116,19 +125,45 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
   struct sleepy_dev *dev = (struct sleepy_dev *)filp->private_data;
   ssize_t retval = 0;
 	
-  if (mutex_lock_killable(&dev->sleepy_mutex))
-    return -EINTR;
+  //if (mutex_lock_killable(&dev->sleepy_mutex))
+    //return -EINTR;
 	
   /* YOUR CODE HERE */
+
+  // Check if the string is 4 bytes long, if not return
+  if(strlen(buf) != 4)
+    return EINVAL;
  
-  int flag = 1;
+  if(!isNumber(buf))
+    return EINVAL;
+
+  long tmp = 0;
+  long * numSeconds = &tmp;
+
+  simple_strtol(buf, 10, numSeconds); 
  
+  // Check to see if the value passed was a valid number
+    
+  // If it is valid sleep the process for the desired time
+
+  // Convert the desired number of seconds into jiffies to pass to method
+  
+  unsigned long jiffies = msecs_to_jiffies(*numSeconds);	
+  
+  // Determine which device this is a sleep it on the correct wait queue
+
   // Wait for a number of jiffies until ready to wakeup :)
-  __wait_event_interruptible(wq, flag != 0);
+  unsigned long timeRemaining = wait_event_interruptible_timeout(wq, flag != 0, jiffies);
+  flag = 0;
+  
+  retval = jiffies_to_msecs(timeRemaining) / 1000;
 
   /* END YOUR CODE */
 	
-  mutex_unlock(&dev->sleepy_mutex);
+  //mutex_unlock(&dev->sleepy_mutex);
+  
+  printk("Operating in sleepy_write after the mutex! \n");
+  
   return retval;
 }
 
