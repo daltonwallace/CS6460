@@ -93,8 +93,8 @@ sleepy_release(struct inode *inode, struct file *filp)
 int isNumber(const char* string)
 {
 	long tmp = 0;
-	long * resultPtr = 0;
-	simple_strtol(string, 10, resultPtr);
+	long * resultPtr = &tmp;
+	kstrtol(string, 10, resultPtr);
 	return !(*resultPtr == 0 && string[0] != '0');
 }
 
@@ -109,8 +109,15 @@ sleepy_read(struct file *filp, char __user *buf, size_t count,
     return -EINTR;
 	
   /* YOUR CODE HERE */
+
+  // TODO
+  // Determine if we need the flag variable
+  // Determine which wait queue to wake up
+  
   flag = 1;
   wake_up_interruptible(&wq);
+  
+
   /* END YOUR CODE */
 	
  mutex_unlock(&dev->sleepy_mutex);
@@ -134,35 +141,34 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
   if(strlen(buf) != 4)
     return EINVAL;
  
+  // Check to see if the value passed was a valid number
   if(!isNumber(buf))
     return EINVAL;
 
+  // Convert to long
   long tmp = 0;
   long * numSeconds = &tmp;
+  kstrtol(buf, 10, numSeconds); 
 
-  simple_strtol(buf, 10, numSeconds); 
+  // Check to see if value is negative
+  if(*numSeconds < 0)
+    return EINVAL;
  
-  // Check to see if the value passed was a valid number
-    
+  // TODO
+  // Determine which device this is and sleep it on the correct wait queue
+  // Figure out the mutex business
+
   // If it is valid sleep the process for the desired time
-
-  // Convert the desired number of seconds into jiffies to pass to method
-  
-  unsigned long jiffies = msecs_to_jiffies(*numSeconds);	
-  
-  // Determine which device this is a sleep it on the correct wait queue
-
-  // Wait for a number of jiffies until ready to wakeup :)
+  unsigned long jiffies = msecs_to_jiffies((*numSeconds * 1000));	
   unsigned long timeRemaining = wait_event_interruptible_timeout(wq, flag != 0, jiffies);
   flag = 0;
-  
   retval = jiffies_to_msecs(timeRemaining) / 1000;
+
+  printk("DEVICE NAME: %s \n",filp->f_path.dentry->d_iname );  
 
   /* END YOUR CODE */
 	
   //mutex_unlock(&dev->sleepy_mutex);
-  
-  printk("Operating in sleepy_write after the mutex! \n");
   
   return retval;
 }
