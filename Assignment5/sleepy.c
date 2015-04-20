@@ -52,8 +52,8 @@ static struct sleepy_dev *sleepy_devices = NULL;
 static struct class *sleepy_class = NULL;
 /* ================================================================ */
 
-static DECLARE_WAIT_QUEUE_HEAD(wq);
-static int flag = 0;
+static wait_queue_head_t * wqArray;
+volatile static int flag = 0;
 
 int 
 sleepy_open(struct inode *inode, struct file *filp)
@@ -112,10 +112,12 @@ sleepy_read(struct file *filp, char __user *buf, size_t count,
 
   // TODO
   // Determine if we need the flag variable
+  
   // Determine which wait queue to wake up
+  int sleepyDeviceNumber = (filp->f_path.dentry->d_iname)[6] - '0';
   
   flag = 1;
-  wake_up_interruptible(&wq);
+  wake_up_interruptible(&wqArray[sleepyDeviceNumber]);
   
 
   /* END YOUR CODE */
@@ -132,8 +134,8 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
   struct sleepy_dev *dev = (struct sleepy_dev *)filp->private_data;
   ssize_t retval = 0;
 	
-  //if (mutex_lock_killable(&dev->sleepy_mutex))
-    //return -EINTR;
+  if (mutex_lock_killable(&dev->sleepy_mutex))
+    return -EINTR;
 	
   /* YOUR CODE HERE */
 
@@ -154,21 +156,24 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
   if(*numSeconds < 0)
     return EINVAL;
  
-  // TODO
   // Determine which device this is and sleep it on the correct wait queue
-  // Figure out the mutex business
-
+  int sleepyDeviceNumber = (filp->f_path.dentry->d_iname)[6] - '0';
+  
   // If it is valid sleep the process for the desired time
   unsigned long jiffies = msecs_to_jiffies((*numSeconds * 1000));	
-  unsigned long timeRemaining = wait_event_interruptible_timeout(wq, flag != 0, jiffies);
+
+  wait_queue_head_t * currentWQ = &wqArray[sleepyDeviceNumber];  
+  
+  mutex_unlock(&dev->sleepy_mutex);
+  
+  unsigned long timeRemaining = wait_event_interruptible_timeout(*currentWQ, flag != 0, jiffies);
   flag = 0;
   retval = jiffies_to_msecs(timeRemaining) / 1000;
 
-  printk("DEVICE NAME: %s \n",filp->f_path.dentry->d_iname );  
-
+  //printk("DEVICE NAME: %s \n",filp->f_path.dentry->d_iname );  
+  //printk("DEVICE NUMBER: %d \n", sleepyDeviceNumber);
   /* END YOUR CODE */
 	
-  //mutex_unlock(&dev->sleepy_mutex);
   
   return retval;
 }
@@ -264,6 +269,9 @@ sleepy_cleanup_module(int devices_to_destroy)
   /* [NB] sleepy_cleanup_module is never called if alloc_chrdev_region()
    * has failed. */
   unregister_chrdev_region(MKDEV(sleepy_major, 0), sleepy_ndevices);
+  
+  kfree(wqArray);  
+
   return;
 }
 
@@ -316,6 +324,13 @@ sleepy_init_module(void)
     }
   }
   
+  wqArray = kmalloc(sizeof(wait_queue_head_t)*sleepy_ndevices, GFP_KERNEL);
+
+  for(i = 0; i < sleepy_ndevices; i++)
+  {
+    init_waitqueue_head(&wqArray[i]);
+  }
+
   printk ("sleepy module loaded\n");
 
   return 0; /* success */
