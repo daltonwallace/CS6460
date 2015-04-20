@@ -43,7 +43,7 @@ void* sleepy_write_1(void* x)
 
 	// Could not get to this point without modifying sleepy permissions
 	printf("Sleep1 going to sleep.. \n");
-	int retval = write(filedesc, "0005", 4);	
+	int retval = write(filedesc, "0010", 4);	
 	
 	//printf("WRITE ERRNO: %s \n", strerror(errno));	
 	printf("sleepy 1 AFTER BEING AWOKEN, (should not be 0): %d \n", retval);
@@ -54,7 +54,7 @@ void* sleepy_write_1(void* x)
 	return x;	
 }
 
-void* sleepy_read_0(void* x)
+void* sleepy_read_1(void* x)
 {
 	int filedesc2 = open("/dev/sleepy1", O_RDONLY);
 	
@@ -74,10 +74,30 @@ void* sleepy_read_0(void* x)
 	return x;
 }
 
+void* sleepy_read_0(void* x)
+{
+	int filedesc2 = open("/dev/sleepy0", O_RDONLY);
+	
+	if(filedesc2 < 0)
+	{
+		printf("Could not access file %s \n", strerror(errno));
+		return x;
+	}
+	
+	printf("Waking up Sleepy0...\n");
+	
+	char data[128];
+	ssize_t size = read(filedesc2, data, 128);
+	
+	//printf("READ ERRNO: %s \n", strerror(errno));	
+	printf("IGNORE Read return value: %zd \n", size);
+	return x;
+}
+
 int main( int argc, const char* argv[] )
 {
 
-	pthread_t * threadArr = malloc(sizeof(pthread_t)*3);
+	pthread_t * threadArr = malloc(sizeof(pthread_t)*4);
 	
 	int createResult;
 	
@@ -110,9 +130,19 @@ int main( int argc, const char* argv[] )
 		return 1;
 	}
 	
+	sleep(6);
+
+	createResult = pthread_create(&threadArr[3], NULL, sleepy_read_1, arg);
+	
+	if(createResult != 0)
+	{
+		fprintf(stderr, "Thread could not be created! \n");
+		return 1;
+	}
+	
 	int joinResult = -1;
 
-	for(int i = 0; i < 3; i ++)
+	for(int i = 0; i < 4; i ++)
 	{
 		joinResult = pthread_join(threadArr[i], NULL);
 

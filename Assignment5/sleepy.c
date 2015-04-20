@@ -110,16 +110,12 @@ sleepy_read(struct file *filp, char __user *buf, size_t count,
 	
   /* YOUR CODE HERE */
 
-  // TODO
-  // Determine if we need the flag variable
-  
   // Determine which wait queue to wake up
   int sleepyDeviceNumber = (filp->f_path.dentry->d_iname)[6] - '0';
   
   flag = 1;
   wake_up_interruptible(&wqArray[sleepyDeviceNumber]);
   
-
   /* END YOUR CODE */
 	
  mutex_unlock(&dev->sleepy_mutex);
@@ -141,11 +137,17 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
 
   // Check if the string is 4 bytes long, if not return
   if(strlen(buf) != 4)
+  {
+    mutex_unlock(&dev->sleepy_mutex);
     return EINVAL;
+  }
  
   // Check to see if the value passed was a valid number
   if(!isNumber(buf))
+  {
+    mutex_unlock(&dev->sleepy_mutex);
     return EINVAL;
+  }
 
   // Convert to long
   long tmp = 0;
@@ -154,7 +156,10 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
 
   // Check to see if value is negative
   if(*numSeconds < 0)
+  {
+    mutex_unlock(&dev->sleepy_mutex);
     return EINVAL;
+  }
  
   // Determine which device this is and sleep it on the correct wait queue
   int sleepyDeviceNumber = (filp->f_path.dentry->d_iname)[6] - '0';
@@ -170,11 +175,8 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
   flag = 0;
   retval = jiffies_to_msecs(timeRemaining) / 1000;
 
-  //printk("DEVICE NAME: %s \n",filp->f_path.dentry->d_iname );  
-  //printk("DEVICE NUMBER: %d \n", sleepyDeviceNumber);
   /* END YOUR CODE */
 	
-  
   return retval;
 }
 
