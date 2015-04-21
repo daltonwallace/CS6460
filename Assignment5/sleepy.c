@@ -53,7 +53,7 @@ static struct class *sleepy_class = NULL;
 /* ================================================================ */
 
 static wait_queue_head_t * wqArray;
-volatile static int flag = 0;
+volatile int flag [10];
 
 int 
 sleepy_open(struct inode *inode, struct file *filp)
@@ -90,14 +90,6 @@ sleepy_release(struct inode *inode, struct file *filp)
   return 0;
 }
 
-int isNumber(const char* string)
-{
-	long tmp = 0;
-	long * resultPtr = &tmp;
-	kstrtol(string, 10, resultPtr);
-	return !(*resultPtr == 0 && string[0] != '0');
-}
-
 ssize_t 
 sleepy_read(struct file *filp, char __user *buf, size_t count, 
 	    loff_t *f_pos)
@@ -113,7 +105,7 @@ sleepy_read(struct file *filp, char __user *buf, size_t count,
   // Determine which wait queue to wake up
   int sleepyDeviceNumber = (filp->f_path.dentry->d_iname)[6] - '0';
   
-  flag = 1;
+  flag[sleepyDeviceNumber] = 1;
   wake_up_interruptible(&wqArray[sleepyDeviceNumber]);
   
   /* END YOUR CODE */
@@ -129,37 +121,48 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
 {
   struct sleepy_dev *dev = (struct sleepy_dev *)filp->private_data;
   ssize_t retval = 0;
-	
+
+  //printk("count came across as: %zd", count);
+  //printk("dev data is: %s \n", dev->data);
+   	
   if (mutex_lock_killable(&dev->sleepy_mutex))
     return -EINTR;
 	
   /* YOUR CODE HERE */
-
-  // Check if the string is 4 bytes long, if not return
-  if(strlen(buf) != 4)
+  
+  if(count != 4)
   {
     mutex_unlock(&dev->sleepy_mutex);
     return EINVAL;
-  }
+  }  
+
+  int* numSeconds = buf;
+  
+  // Check if the string is 4 bytes long, if not return
+  //if(strlen(buf) != 4)
+  //{
+  //  mutex_unlock(&dev->sleepy_mutex);
+  //  return EINVAL;
+  //}
  
   // Check to see if the value passed was a valid number
-  if(!isNumber(buf))
-  {
-    mutex_unlock(&dev->sleepy_mutex);
-    return EINVAL;
-  }
+  //if(!isNumber(buf))
+  //{
+  //  mutex_unlock(&dev->sleepy_mutex);
+  //  return EINVAL;
+  //}
 
   // Convert to long
-  long tmp = 0;
-  long * numSeconds = &tmp;
-  kstrtol(buf, 10, numSeconds); 
+  //long tmp = 0;
+  //long * numSeconds = &tmp;
+  //kstrtol(buf, 10, numSeconds); 
 
   // Check to see if value is negative
-  if(*numSeconds < 0)
-  {
-    mutex_unlock(&dev->sleepy_mutex);
-    return EINVAL;
-  }
+  //if(*numSeconds < 0)
+  //{
+  //  mutex_unlock(&dev->sleepy_mutex);
+  //  return EINVAL;
+  //}
  
   // Determine which device this is and sleep it on the correct wait queue
   int sleepyDeviceNumber = (filp->f_path.dentry->d_iname)[6] - '0';
@@ -171,8 +174,9 @@ sleepy_write(struct file *filp, const char __user *buf, size_t count,
   
   mutex_unlock(&dev->sleepy_mutex);
   
-  unsigned long timeRemaining = wait_event_interruptible_timeout(*currentWQ, flag != 0, jiffies);
-  flag = 0;
+  unsigned long timeRemaining = wait_event_interruptible_timeout(*currentWQ, flag[sleepyDeviceNumber] != 0, jiffies);
+  flag[sleepyDeviceNumber] = 0;
+  
   retval = jiffies_to_msecs(timeRemaining) / 1000;
 
   /* END YOUR CODE */

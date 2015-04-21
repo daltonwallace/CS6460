@@ -19,10 +19,14 @@ void* sleepy_write_0(void* x)
 
 	// Could not get to this point without modifying sleepy permissions
 	printf("Sleepy0 going to sleep.. \n");
-	int retval = write(filedesc, "0005", 4);	
+	
+	int val = 10;
+	int* valPtr = &val;
+
+	int retval = write(filedesc, valPtr, 4);	
 	
 	//printf("WRITE ERRNO: %s \n", strerror(errno));	
-	printf("sleepy 0 AFTER BEING AWOKEN, (should be 0): %d \n", retval);
+	printf("sleepy 0 AFTER BEING AWOKEN: %d \n", retval);
 	
         
 	close(filedesc);
@@ -43,10 +47,14 @@ void* sleepy_write_1(void* x)
 
 	// Could not get to this point without modifying sleepy permissions
 	printf("Sleep1 going to sleep.. \n");
-	int retval = write(filedesc, "0010", 4);	
+	
+	int val = 10;
+	int* valPtr = &val;
+	
+	int retval = write(filedesc, valPtr, 4);	
 	
 	//printf("WRITE ERRNO: %s \n", strerror(errno));	
-	printf("sleepy 1 AFTER BEING AWOKEN, (should not be 0): %d \n", retval);
+	printf("sleepy 1 AFTER BEING AWOKEN: %d \n", retval);
 	
 	close(filedesc);
 
